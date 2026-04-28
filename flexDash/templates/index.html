@@ -1,0 +1,1087 @@
+{% load static %}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Flexible Dashboard</title>
+  <!-- Bootstrap 5 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" />
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet" />
+  <!-- Chart.js -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  {% csrf_token %}
+  <style>
+    :root {
+      --brand: #6366f1;
+      --brand-dark: #4f46e5;
+      --surface: #f8f9fd;
+      --card-bg: #ffffff;
+      --muted: #64748b;
+      --border: #e2e8f0;
+    }
+    .container { max-width: 95% !important;  }
+    body { background: var(--surface); font-family: 'Segoe UI', system-ui, sans-serif; min-height: 100vh; }
+
+    /* Navbar */
+    .navbar-brand { font-weight: 700; font-size: 1.3rem; letter-spacing: -0.3px; }
+    .navbar { border-bottom: 1px solid var(--border); }
+
+    /* Wizard progress */
+    .wizard-wrap { padding: 2rem 0 1rem; }
+    .step-bar { display: flex; align-items: center; justify-content: center; gap: 0; }
+    .step-item { display: flex; flex-direction: column; align-items: center; position: relative; flex: 1; max-width: 180px; }
+    .step-circle {
+      width: 42px; height: 42px; border-radius: 50%;
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 600; font-size: 0.9rem;
+      background: #e2e8f0; color: var(--muted);
+      border: 3px solid #e2e8f0;
+      transition: all 0.3s;
+      z-index: 2; position: relative;
+    }
+    .step-label { font-size: 0.75rem; color: var(--muted); margin-top: 6px; text-align: center; font-weight: 500; }
+    .step-item.active .step-circle { background: var(--brand); color: #fff; border-color: var(--brand); box-shadow: 0 0 0 4px rgba(99,102,241,0.2); }
+    .step-item.active .step-label { color: var(--brand); font-weight: 600; }
+    .step-item.done .step-circle { background: #10b981; color: #fff; border-color: #10b981; }
+    .step-item.done .step-label { color: #10b981; }
+    .step-line { flex: 1; height: 3px; background: #e2e8f0; margin: 0; position: relative; top: -18px; max-width: 80px; transition: background 0.3s; }
+    .step-line.done { background: #10b981; }
+
+    /* Upload zone */
+    .upload-zone {
+      border: 2.5px dashed var(--border);
+      border-radius: 16px;
+      padding: 3.5rem 2rem;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.25s;
+      background: #fff;
+    }
+    .upload-zone:hover, .upload-zone.drag-over {
+      border-color: var(--brand);
+      background: #f0f0ff;
+    }
+    .upload-zone .icon-wrap { font-size: 3.5rem; color: var(--brand); margin-bottom: 1rem; }
+    .upload-zone h4 { font-weight: 600; margin-bottom: 0.5rem; }
+    .upload-zone p { color: var(--muted); font-size: 0.9rem; margin: 0; }
+
+    /* Cards */
+    .dash-card { background: var(--card-bg); border-radius: 14px; border: 1px solid var(--border); padding: 1.5rem; box-shadow: 0 1px 4px rgba(0,0,0,0.05); }
+
+    /* Chart type cards */
+    .chart-type-cards { display: flex; flex-wrap: wrap; gap: 12px; }
+    .chart-card {
+      border: 2px solid var(--border);
+      border-radius: 12px;
+      padding: 16px 20px;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fff;
+      min-width: 130px;
+      text-align: center;
+      user-select: none;
+    }
+    .chart-card:hover { border-color: var(--brand); background: #f5f5ff; }
+    .chart-card.selected { border-color: var(--brand); background: #eef2ff; color: var(--brand); }
+    .chart-card .chart-icon { font-size: 2rem; margin-bottom: 6px; }
+    .chart-card .chart-name { font-size: 0.85rem; font-weight: 600; }
+
+    /* Storage cards */
+    .storage-card {
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 1.75rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fff;
+    }
+    .storage-card:hover { border-color: var(--brand); }
+    .storage-card.selected { border-color: var(--brand); background: #eef2ff; }
+    .storage-card .storage-icon { font-size: 2.5rem; margin-bottom: 0.75rem; }
+
+    /* Source cards */
+    .source-card {
+      border: 2px solid var(--border);
+      border-radius: 14px;
+      padding: 1.2rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fff;
+      height: 100%;
+    }
+    .source-card:hover { border-color: var(--brand); }
+    .source-card.selected { border-color: var(--brand); background: #eef2ff; }
+    .source-card .source-icon { font-size: 1.8rem; margin-bottom: 0.55rem; }
+
+    /* Dashboard charts */
+    .chart-wrapper { position: relative; width: 100%; height: 320px; }
+
+    /* Preview table */
+    .preview-table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+    .preview-table-wrap table { margin: 0; font-size: 0.83rem; }
+    .preview-table-wrap thead th { background: #f1f5f9; font-weight: 600; white-space: nowrap; }
+
+    /* Column checkboxes */
+    .col-check-group { display: flex; flex-wrap: wrap; gap: 10px; }
+    .col-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      padding: 6px 14px; border-radius: 20px;
+      border: 2px solid var(--border);
+      cursor: pointer; font-size: 0.85rem; font-weight: 500;
+      transition: all 0.15s; background: #fff;
+    }
+    .col-badge input[type=checkbox] { display: none; }
+    .col-badge:has(input:checked) { border-color: var(--brand); background: #eef2ff; color: var(--brand); }
+    .col-badge.y-selected { border-color: var(--brand); background: #eef2ff; color: var(--brand); }
+
+    /* Buttons */
+    .btn-primary { background: var(--brand); border-color: var(--brand); }
+    .btn-primary:hover, .btn-primary:focus { background: var(--brand-dark); border-color: var(--brand-dark); }
+    .btn-outline-primary { color: var(--brand); border-color: var(--brand); }
+    .btn-outline-primary:hover { background: var(--brand); border-color: var(--brand); }
+
+    /* TTL badge */
+    .ttl-badge { font-size: 0.8rem; padding: 4px 12px; border-radius: 20px; }
+
+    /* Loader */
+    .spinner-overlay {
+      position: fixed; inset: 0; background: rgba(255,255,255,0.7);
+      display: flex; align-items: center; justify-content: center;
+      z-index: 9999;
+    }
+
+    /* Section fade */
+    .step-section { animation: fadeIn 0.3s ease; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Alert */
+    .toast-box {
+      position: fixed; bottom: 24px; right: 24px; z-index: 9999;
+      min-width: 280px; max-width: 400px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ===== NAVBAR ===== -->
+<nav class="navbar navbar-expand-lg bg-white sticky-top">
+  <div class="container-fluid px-4">
+    <span class="navbar-brand text-indigo-600">
+      <i class="bi bi-grid-3x3-gap-fill me-2" style="color:var(--brand)"></i>Flexible Dashboard
+    </span>
+    <div class="ms-auto d-flex align-items-center gap-3" id="navExtra" style="display:none!important">
+      <span id="ttlDisplay" class="badge bg-warning text-dark ttl-badge d-none">
+        <i class="bi bi-clock me-1"></i><span id="ttlText">30:00</span> remaining
+      </span>
+      <button class="btn btn-sm btn-outline-danger" id="btnClearAll" onclick="clearAll()" style="display:none">
+        <i class="bi bi-trash me-1"></i>Clear All
+      </button>
+      <button class="btn btn-sm btn-outline-secondary" onclick="resetDashboard()">
+        <i class="bi bi-arrow-counterclockwise me-1"></i>Start Over
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- ===== WIZARD PROGRESS ===== -->
+<div class="container wizard-wrap">
+  <div class="step-bar" id="stepBar">
+    <div class="step-item active" id="si-1">
+      <div class="step-circle"><i class="bi bi-upload"></i></div>
+      <div class="step-label">Upload</div>
+    </div>
+    <div class="step-line" id="sl-1"></div>
+    <div class="step-item" id="si-2">
+      <div class="step-circle">2</div>
+      <div class="step-label">Configure</div>
+    </div>
+    <div class="step-line" id="sl-2"></div>
+    <div class="step-item" id="si-3">
+      <div class="step-circle">3</div>
+      <div class="step-label">Storage</div>
+    </div>
+    <div class="step-line" id="sl-3"></div>
+    <div class="step-item" id="si-4">
+      <div class="step-circle">4</div>
+      <div class="step-label">Dashboard</div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== MAIN CONTENT ===== -->
+<div class="container pb-5" style="max-width:960px">
+
+  <!-- ── STEP 1: Data Source ── -->
+  <div id="step1" class="step-section">
+    <div class="text-center mb-4">
+      <h2 class="fw-bold">Select Data Source</h2>
+      <p class="text-muted">Choose file upload or existing database table</p>
+    </div>
+
+    <div class="row g-3 mb-4">
+      <div class="col-md-6">
+        <div class="source-card selected" id="sourceUploadCard" onclick="selectSource('upload')">
+          <div class="source-icon text-primary"><i class="bi bi-file-earmark-arrow-up-fill"></i></div>
+          <h6 class="fw-bold mb-1">Upload File</h6>
+          <p class="text-muted mb-0" style="font-size:0.85rem">Upload CSV / XLSX and build dashboard instantly.</p>
+        </div>
+      </div>
+      <div class="col-md-6">
+        <div class="source-card" id="sourceTableCard" onclick="selectSource('table')">
+          <div class="source-icon text-success"><i class="bi bi-table"></i></div>
+          <h6 class="fw-bold mb-1">Use Existing Table</h6>
+          <p class="text-muted mb-0" style="font-size:0.85rem">Select a saved DB table and chart it directly.</p>
+        </div>
+      </div>
+    </div>
+
+    <div id="uploadSourceSection">
+      <div class="upload-zone mx-auto" id="uploadZone" style="max-width:560px"
+           onclick="document.getElementById('fileInput').click()"
+           ondragover="handleDragOver(event)"
+           ondragleave="handleDragLeave(event)"
+           ondrop="handleDrop(event)">
+        <div class="icon-wrap"><i class="bi bi-cloud-arrow-up"></i></div>
+        <h4>Drag & drop your file here</h4>
+        <p>or click to browse your files</p>
+        <p class="mt-3">
+          <span class="badge bg-light text-secondary border me-1">CSV</span>
+          <span class="badge bg-light text-secondary border me-1">XLSX</span>
+          <span class="badge bg-light text-secondary border">XLS</span>
+        </p>
+      </div>
+      <input type="file" id="fileInput" accept=".csv,.xlsx,.xls" class="d-none" onchange="handleFileSelect(event)" />
+    </div>
+
+    <div id="tableSourceSection" class="dash-card d-none mx-auto" style="max-width:720px">
+      <h6 class="fw-bold mb-3"><i class="bi bi-database me-2"></i>Select Table</h6>
+      <div class="row g-3 align-items-end">
+        <div class="col-md-8">
+          <label class="form-label">Available Tables</label>
+          <select class="form-select" id="tableSelect">
+            <option value="">-- Select a table --</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <button class="btn btn-outline-primary w-100" onclick="loadSelectedTable()">
+            <i class="bi bi-cloud-download me-1"></i>Load Table
+          </button>
+        </div>
+      </div>
+      <small class="text-muted d-block mt-2">This will load table data to dashboard cache for charting.</small>
+    </div>
+
+    <div id="fileInfo" class="text-center mt-3 d-none">
+      <span class="badge bg-primary px-3 py-2 fs-6" id="fileInfoText"></span>
+    </div>
+    <div class="text-center mt-4">
+      <div id="uploadError" class="alert alert-danger d-none mx-auto" style="max-width:500px"></div>
+    </div>
+  </div>
+
+  <!-- ── STEP 2: Configure ── -->
+  <div id="step2" class="step-section d-none">
+    <div class="mb-4">
+      <h2 class="fw-bold">Configure Your Chart</h2>
+      <p class="text-muted">Choose the axes and select one or more chart types to render</p>
+    </div>
+
+    <!-- Data preview -->
+    <div class="dash-card mb-4">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-table me-2 text-primary"></i>Data Preview</h6>
+        <span class="badge bg-light text-secondary border" id="previewMeta"></span>
+      </div>
+      <div class="preview-table-wrap">
+        <table class="table table-sm table-hover" id="previewTable"></table>
+      </div>
+    </div>
+
+    <div class="dash-card mb-4">
+      <h6 class="fw-bold mb-2"><i class="bi bi-clock-history me-2 text-info"></i>Chart Time (Optional)</h6>
+      <p class="text-muted mb-3" style="font-size:0.82rem">If your data has a date/time column, filter chart points by time range.</p>
+      <div class="row g-3">
+        <div class="col-md-4">
+          <label class="form-label" style="font-size:0.82rem">Time Column</label>
+          <select id="timeColumnSelect" class="form-select">
+            <option value="">-- None --</option>
+          </select>
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" style="font-size:0.82rem">From</label>
+          <input id="timeStartInput" type="datetime-local" class="form-control" />
+        </div>
+        <div class="col-md-4">
+          <label class="form-label" style="font-size:0.82rem">To</label>
+          <input id="timeEndInput" type="datetime-local" class="form-control" />
+        </div>
+      </div>
+    </div>
+
+    <!-- Column config -->
+    <div class="row g-4 mb-4">
+      <div class="col-md-5">
+        <div class="dash-card h-100">
+          <h6 class="fw-bold mb-3"><i class="bi bi-arrow-left-right me-2 text-warning"></i>X Axis (Label column)</h6>
+          <select class="form-select" id="xColumnSelect">
+            <option value="">-- Select a column --</option>
+          </select>
+          <p class="text-muted mt-2 mb-0" style="font-size:0.8rem">Usually a categorical or date column.</p>
+        </div>
+      </div>
+      <div class="col-md-7">
+        <div class="dash-card h-100">
+          <h6 class="fw-bold mb-2"><i class="bi bi-arrow-up me-2 text-success"></i>Y Axis (Value columns)</h6>
+          <p class="text-muted mb-2" style="font-size:0.8rem">Select one or more numeric columns to plot.</p>
+          <div class="col-check-group" id="yColumnsGroup"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart type selection -->
+    <div class="dash-card mb-4">
+      <h6 class="fw-bold mb-3"><i class="bi bi-bar-chart me-2 text-indigo"></i>Chart Types <small class="text-muted fw-normal">(select one or more)</small></h6>
+      <div class="chart-type-cards" id="chartTypeCards">
+        <div class="chart-card" data-type="bar" onclick="toggleChartType(this)">
+          <div class="chart-icon"><i class="bi bi-bar-chart-fill"></i></div>
+          <div class="chart-name">Bar</div>
+        </div>
+        <div class="chart-card" data-type="line" onclick="toggleChartType(this)">
+          <div class="chart-icon"><i class="bi bi-graph-up"></i></div>
+          <div class="chart-name">Line</div>
+        </div>
+        <div class="chart-card" data-type="area" onclick="toggleChartType(this)">
+          <div class="chart-icon"><i class="bi bi-graph-up-arrow"></i></div>
+          <div class="chart-name">Area</div>
+        </div>
+        <div class="chart-card" data-type="pie" onclick="toggleChartType(this)">
+          <div class="chart-icon"><i class="bi bi-pie-chart-fill"></i></div>
+          <div class="chart-name">Pie</div>
+        </div>
+        <div class="chart-card" data-type="doughnut" onclick="toggleChartType(this)">
+          <div class="chart-icon"><i class="bi bi-circle-half"></i></div>
+          <div class="chart-name">Doughnut</div>
+        </div>
+        <div class="chart-card" data-type="radar" onclick="toggleChartType(this)">
+          <div class="chart-icon"><i class="bi bi-hexagon"></i></div>
+          <div class="chart-name">Radar</div>
+        </div>
+        <div class="chart-card" data-type="polarArea" onclick="toggleChartType(this)">
+          <div class="chart-icon"><i class="bi bi-vinyl-fill"></i></div>
+          <div class="chart-name">Polar Area</div>
+        </div>
+      </div>
+    </div>
+
+    <div id="configError" class="alert alert-danger d-none"></div>
+    <div class="d-flex gap-2 justify-content-end">
+      <button class="btn btn-outline-secondary" onclick="goStep(1)"><i class="bi bi-arrow-left me-1"></i>Back</button>
+      <button class="btn btn-primary px-4" onclick="proceedToStorage()">Next: Storage <i class="bi bi-arrow-right ms-1"></i></button>
+    </div>
+  </div>
+
+  <!-- ── STEP 3: Storage ── -->
+  <div id="step3" class="step-section d-none">
+    <div class="mb-4">
+      <h2 class="fw-bold">How would you like to store the data?</h2>
+      <p class="text-muted">Your charts will be generated after this step.</p>
+    </div>
+
+    <div class="row g-4 mb-4">
+      <!-- Save to DB -->
+      <div class="col-md-6">
+        <div class="storage-card h-100" id="cardSaveDB" onclick="selectStorage('db')">
+          <div class="storage-icon text-primary"><i class="bi bi-database-fill-add"></i></div>
+          <h5 class="fw-bold">Save to Database</h5>
+          <p class="text-muted mb-0" style="font-size:0.9rem">
+            Permanently save your data to a PostgreSQL table. You can query and reuse it anytime.
+          </p>
+          <ul class="mt-3 text-muted" style="font-size:0.85rem; padding-left:1.2rem">
+            <li>Data is stored permanently</li>
+            <li>Column names become table columns</li>
+            <li>You choose the table name</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Use Cache -->
+      <div class="col-md-6">
+        <div class="storage-card h-100" id="cardCache" onclick="selectStorage('cache')">
+          <div class="storage-icon text-warning"><i class="bi bi-lightning-fill"></i></div>
+          <h5 class="fw-bold">Temporary (No Save)</h5>
+          <p class="text-muted mb-0" style="font-size:0.9rem">
+            Load and visualise your data instantly using temporary cache.
+          </p>
+          <ul class="mt-3 text-muted" style="font-size:0.85rem; padding-left:1.2rem">
+            <li>Data is <strong>not</strong> stored permanently</li>
+            <li>Expires automatically after <strong>30 minutes</strong></li>
+            <li>Click "Clear All" to remove immediately</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <!-- DB table name input -->
+    <div id="tableNameSection" class="dash-card mb-4 d-none">
+      <h6 class="fw-bold mb-2"><i class="bi bi-input-cursor me-2"></i>Table Name</h6>
+      <p class="text-muted mb-3" style="font-size:0.85rem">
+        Column names from your file will be used as column names in the database table.
+      </p>
+      <input type="text" id="tableNameInput" class="form-control" placeholder="e.g. sales_data_2024"
+             style="max-width:340px" oninput="validateTableName()" />
+      <div id="tableNameError" class="text-danger mt-1" style="font-size:0.82rem"></div>
+      <p class="text-muted mt-2 mb-0" style="font-size:0.78rem">Only letters, numbers and underscores. Cannot start with a digit.</p>
+    </div>
+
+    <div id="storageError" class="alert alert-danger d-none"></div>
+    <div class="d-flex gap-2 justify-content-end">
+      <button class="btn btn-outline-secondary" onclick="goStep(2)"><i class="bi bi-arrow-left me-1"></i>Back</button>
+      <button class="btn btn-primary px-4" onclick="generateDashboard()">
+        <i class="bi bi-magic me-1"></i>Generate Dashboard
+      </button>
+    </div>
+  </div>
+
+  <!-- ── STEP 4: Dashboard ── -->
+  <div id="step4" class="step-section d-none">
+    <!-- Summary strip -->
+    <div class="dash-card mb-4">
+      <div class="row g-3 align-items-center text-center">
+        <div class="col-6 col-md-3">
+          <div class="text-muted" style="font-size:0.75rem">FILE</div>
+          <div class="fw-semibold" id="dFilename" style="font-size:0.9rem; word-break:break-all"></div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted" style="font-size:0.75rem">ROWS</div>
+          <div class="fw-semibold fs-5" id="dRows"></div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted" style="font-size:0.75rem">COLUMNS</div>
+          <div class="fw-semibold fs-5" id="dCols"></div>
+        </div>
+        <div class="col-6 col-md-3">
+          <div class="text-muted" style="font-size:0.75rem">STORAGE</div>
+          <div class="fw-semibold" id="dStorage"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Chart grid -->
+    <div class="row g-4" id="chartsGrid"></div>
+
+    <!-- Empty state -->
+    <div id="noCharts" class="text-center py-5 d-none">
+      <i class="bi bi-bar-chart-line" style="font-size:3rem; color:var(--muted)"></i>
+      <p class="text-muted mt-2">No charts to display yet.</p>
+    </div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ===== LOADING OVERLAY ===== -->
+<div class="spinner-overlay d-none" id="loadingOverlay">
+  <div class="text-center">
+    <div class="spinner-border text-primary" role="status" style="width:3rem;height:3rem"></div>
+    <div class="mt-3 fw-semibold text-muted" id="loadingText">Processing…</div>
+  </div>
+</div>
+
+<!-- ===== TOAST ===== -->
+<div class="toast-box" id="toastBox"></div>
+
+<!-- Bootstrap JS -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+
+<script>
+/* =========================================================
+   STATE
+   ========================================================= */
+const state = {
+  currentStep: 1,
+  sourceType: 'upload',
+  cacheKey: null,
+  columns: [],
+  numericColumns: [],
+  preview: [],
+  totalRows: 0,
+  filename: '',
+  xColumn: null,
+  yColumns: [],
+  chartTypes: [],
+  storageChoice: null,   // 'db' | 'cache'
+  tableName: '',
+  chartInstances: [],    // Chart.js instances
+  ttlInterval: null,
+  ttlSeconds: 1800,
+  timeColumn: '',
+  timeStart: '',
+  timeEnd: '',
+};
+
+/* =========================================================
+   CSRF
+   ========================================================= */
+function csrfToken() {
+  return document.querySelector('[name=csrfmiddlewaretoken]').value;
+}
+
+/* =========================================================
+   LOADING / TOAST
+   ========================================================= */
+function showLoading(msg = 'Processing…') {
+  document.getElementById('loadingText').textContent = msg;
+  document.getElementById('loadingOverlay').classList.remove('d-none');
+}
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.add('d-none');
+}
+function showToast(msg, type = 'success') {
+  const id = 'toast_' + Date.now();
+  const icon = type === 'success' ? 'bi-check-circle-fill text-success'
+             : type === 'warning' ? 'bi-exclamation-triangle-fill text-warning'
+             : 'bi-x-circle-fill text-danger';
+  const html = `
+    <div id="${id}" class="alert alert-${type === 'error' ? 'danger' : type} alert-dismissible shadow-sm mb-2" style="font-size:0.9rem">
+      <i class="bi ${icon} me-2"></i>${msg}
+      <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>`;
+  document.getElementById('toastBox').insertAdjacentHTML('beforeend', html);
+  setTimeout(() => document.getElementById(id)?.remove(), 5000);
+}
+
+/* =========================================================
+   STEP NAVIGATION
+   ========================================================= */
+function goStep(n) {
+  ['step1','step2','step3','step4'].forEach((id, i) => {
+    document.getElementById(id).classList.toggle('d-none', i + 1 !== n);
+  });
+  for (let i = 1; i <= 4; i++) {
+    const si = document.getElementById('si-' + i);
+    si.classList.remove('active', 'done');
+    if (i < n) si.classList.add('done');
+    else if (i === n) si.classList.add('active');
+    // step circles for done: show check
+    const circle = si.querySelector('.step-circle');
+    if (i < n) circle.innerHTML = '<i class="bi bi-check-lg"></i>';
+    else if (i === n) circle.innerHTML = ({'1':'<i class="bi bi-upload"></i>', '2':'2', '3':'3', '4':'4'})[i] || i;
+    else circle.textContent = i;
+  }
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById('sl-' + i).classList.toggle('done', i < n);
+  }
+  state.currentStep = n;
+  // Show nav extra from step 4
+  document.getElementById('navExtra').style.display = n === 4 ? 'flex' : 'none';
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+/* =========================================================
+   SOURCE SELECT
+   ========================================================= */
+function selectSource(type) {
+  state.sourceType = type;
+  document.getElementById('sourceUploadCard').classList.toggle('selected', type === 'upload');
+  document.getElementById('sourceTableCard').classList.toggle('selected', type === 'table');
+  document.getElementById('uploadSourceSection').classList.toggle('d-none', type !== 'upload');
+  document.getElementById('tableSourceSection').classList.toggle('d-none', type !== 'table');
+  document.getElementById('uploadError').classList.add('d-none');
+
+  if (type === 'table') {
+    fetchTables();
+  }
+}
+
+async function fetchTables() {
+  try {
+    const res = await fetch('/list-tables/');
+    const data = await res.json();
+    if (!res.ok || data.error) {
+      throw new Error(data.error || 'Unable to load tables.');
+    }
+
+    const select = document.getElementById('tableSelect');
+    select.innerHTML = '<option value="">-- Select a table --</option>' +
+      data.tables.map(t => `<option value="${esc(t)}">${esc(t)}</option>`).join('');
+
+    if (data.tables.length === 0) {
+      showToast('No user tables found in database yet.', 'warning');
+    }
+  } catch (err) {
+    document.getElementById('uploadError').textContent = 'Table fetch failed: ' + err.message;
+    document.getElementById('uploadError').classList.remove('d-none');
+  }
+}
+
+async function loadSelectedTable() {
+  const tableName = document.getElementById('tableSelect').value;
+  if (!tableName) {
+    showToast('Please choose a table first.', 'warning');
+    return;
+  }
+
+  showLoading('Loading selected table...');
+  try {
+    const res = await fetch('/load-table-data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+      body: JSON.stringify({ table_name: tableName }),
+    });
+    const data = await res.json();
+    hideLoading();
+
+    if (!res.ok || data.error) {
+      throw new Error(data.error || 'Unable to load table.');
+    }
+
+    state.cacheKey = data.cache_key;
+    state.columns = data.columns;
+    state.numericColumns = data.numeric_columns;
+    state.preview = data.preview;
+    state.totalRows = data.total_rows;
+    state.filename = data.filename;
+
+    document.getElementById('fileInfoText').textContent =
+      `DB table: ${tableName}  •  ${data.total_rows} rows  •  ${data.columns.length} columns`;
+    document.getElementById('fileInfo').classList.remove('d-none');
+
+    buildStep2(data);
+    goStep(2);
+    showToast(`Table loaded: ${tableName}`);
+  } catch (err) {
+    hideLoading();
+    document.getElementById('uploadError').textContent = err.message;
+    document.getElementById('uploadError').classList.remove('d-none');
+  }
+}
+
+/* =========================================================
+   FILE UPLOAD
+   ========================================================= */
+function handleDragOver(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.add('drag-over');
+}
+function handleDragLeave(e) {
+  document.getElementById('uploadZone').classList.remove('drag-over');
+}
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('uploadZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) uploadFile(file);
+}
+function handleFileSelect(e) {
+  const file = e.target.files[0];
+  if (file) uploadFile(file);
+}
+
+async function uploadFile(file) {
+  document.getElementById('uploadError').classList.add('d-none');
+  showLoading('Parsing your file…');
+
+  const fd = new FormData();
+  fd.append('file', file);
+
+  try {
+    const res = await fetch('/upload-sheet/', {
+      method: 'POST',
+      headers: { 'X-CSRFToken': csrfToken() },
+      body: fd,
+    });
+    const data = await res.json();
+    hideLoading();
+
+    if (!res.ok || data.error) {
+      document.getElementById('uploadError').textContent = data.error || 'Upload failed.';
+      document.getElementById('uploadError').classList.remove('d-none');
+      return;
+    }
+
+    // Store state
+    state.cacheKey   = data.cache_key;
+    state.columns    = data.columns;
+    state.numericColumns = data.numeric_columns;
+    state.preview    = data.preview;
+    state.totalRows  = data.total_rows;
+    state.filename   = data.filename;
+
+    // File badge
+    document.getElementById('fileInfoText').textContent =
+      `📄 ${data.filename}  •  ${data.total_rows} rows  •  ${data.columns.length} columns`;
+    document.getElementById('fileInfo').classList.remove('d-none');
+
+    buildStep2(data);
+    goStep(2);
+    showToast(`File uploaded: ${data.total_rows} rows, ${data.columns.length} columns`);
+
+  } catch (err) {
+    hideLoading();
+    document.getElementById('uploadError').textContent = 'Network error: ' + err.message;
+    document.getElementById('uploadError').classList.remove('d-none');
+  }
+}
+
+/* =========================================================
+   STEP 2 — Build Configure UI
+   ========================================================= */
+function buildStep2(data) {
+  // Preview table
+  const tbl = document.getElementById('previewTable');
+  const thead = `<thead><tr>${data.columns.map(c => `<th>${esc(c)}</th>`).join('')}</tr></thead>`;
+  const tbody = '<tbody>' + data.preview.map(row =>
+    `<tr>${data.columns.map(c => `<td>${esc(String(row[c] ?? ''))}</td>`).join('')}</tr>`
+  ).join('') + '</tbody>';
+  tbl.innerHTML = thead + tbody;
+
+  document.getElementById('previewMeta').textContent =
+    `Showing ${data.preview.length} of ${data.total_rows} rows`;
+
+  // X column select
+  const xSel = document.getElementById('xColumnSelect');
+  xSel.innerHTML = '<option value="">-- Select a column --</option>' +
+    data.columns.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+
+  // Y columns (checkboxes, numeric preferred)
+  const yGroup = document.getElementById('yColumnsGroup');
+  yGroup.innerHTML = data.columns.map(col => {
+    const isNum = data.numeric_columns.includes(col);
+    return `
+      <label class="col-badge ${isNum ? '' : 'text-muted'}" title="${isNum ? 'Numeric' : 'Non-numeric — may not render correctly'}">
+        <input type="checkbox" value="${esc(col)}" ${isNum ? '' : ''} onchange="syncYCols()">
+        <i class="bi ${isNum ? 'bi-hash text-primary' : 'bi-fonts text-muted'}"></i>
+        ${esc(col)}
+      </label>`;
+  }).join('');
+
+  const timeSel = document.getElementById('timeColumnSelect');
+  timeSel.innerHTML = '<option value="">-- None --</option>' +
+    data.columns.map(c => `<option value="${esc(c)}">${esc(c)}</option>`).join('');
+}
+
+function syncYCols() {
+  state.yColumns = [...document.querySelectorAll('#yColumnsGroup input:checked')].map(el => el.value);
+}
+
+function toggleChartType(el) {
+  el.classList.toggle('selected');
+  state.chartTypes = [...document.querySelectorAll('.chart-card.selected')].map(c => c.dataset.type);
+}
+
+/* =========================================================
+   STEP 2 → 3: Validate and proceed
+   ========================================================= */
+function proceedToStorage() {
+  const errEl = document.getElementById('configError');
+  errEl.classList.add('d-none');
+
+  const xCol = document.getElementById('xColumnSelect').value;
+  syncYCols();
+
+  if (!xCol) {
+    errEl.textContent = 'Please select an X Axis column.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+  if (state.yColumns.length === 0) {
+    errEl.textContent = 'Please select at least one Y Axis column.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+  if (state.chartTypes.length === 0) {
+    errEl.textContent = 'Please select at least one chart type.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+
+  state.xColumn = xCol;
+  state.timeColumn = document.getElementById('timeColumnSelect').value;
+  state.timeStart = document.getElementById('timeStartInput').value;
+  state.timeEnd = document.getElementById('timeEndInput').value;
+
+  if (state.timeColumn && state.timeStart && state.timeEnd && state.timeStart > state.timeEnd) {
+    errEl.textContent = 'Chart time range is invalid: "From" must be earlier than "To".';
+    errEl.classList.remove('d-none');
+    return;
+  }
+
+  goStep(3);
+}
+
+/* =========================================================
+   STEP 3 — Storage choice
+   ========================================================= */
+function selectStorage(type) {
+  state.storageChoice = type;
+  document.getElementById('cardSaveDB').classList.toggle('selected', type === 'db');
+  document.getElementById('cardCache').classList.toggle('selected', type === 'cache');
+  document.getElementById('tableNameSection').classList.toggle('d-none', type !== 'db');
+}
+
+function validateTableName() {
+  const val = document.getElementById('tableNameInput').value.trim().toLowerCase();
+  const errEl = document.getElementById('tableNameError');
+  if (!val) { errEl.textContent = ''; return true; }
+  if (!/^[a-z_][a-z0-9_]*$/.test(val)) {
+    errEl.textContent = 'Only lowercase letters, digits, underscores. Cannot start with a digit.';
+    return false;
+  }
+  errEl.textContent = '';
+  return true;
+}
+
+/* =========================================================
+   GENERATE DASHBOARD
+   ========================================================= */
+async function generateDashboard() {
+  const errEl = document.getElementById('storageError');
+  errEl.classList.add('d-none');
+
+  if (!state.storageChoice) {
+    errEl.textContent = 'Please choose a storage option.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+
+  if (state.storageChoice === 'db') {
+    const tblName = document.getElementById('tableNameInput').value.trim().toLowerCase();
+    if (!tblName) {
+      errEl.textContent = 'Please enter a table name.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    if (!validateTableName()) return;
+    state.tableName = tblName;
+  }
+
+  showLoading('Generating your dashboard…');
+
+  try {
+    // 1. Get chart data
+    const chartRes = await fetch('/get-chart-data/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+      body: JSON.stringify({
+        cache_key: state.cacheKey,
+        x_column: state.xColumn,
+        y_columns: state.yColumns,
+        chart_types: state.chartTypes,
+        time_column: state.timeColumn,
+        time_start: state.timeStart,
+        time_end: state.timeEnd,
+      }),
+    });
+    const chartData = await chartRes.json();
+    if (!chartRes.ok || chartData.error) throw new Error(chartData.error);
+
+    // 2. Save to DB if chosen
+    if (state.storageChoice === 'db') {
+      const saveRes = await fetch('/save-to-db/', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+        body: JSON.stringify({ cache_key: state.cacheKey, table_name: state.tableName }),
+      });
+      const saveData = await saveRes.json();
+      if (!saveRes.ok || saveData.error) throw new Error(saveData.error);
+      showToast(`Saved ${saveData.rows_saved} rows to table "${saveData.table_name}"`);
+    }
+
+    hideLoading();
+    renderDashboard(chartData.charts);
+    goStep(4);
+
+    if (state.storageChoice === 'cache') {
+      startTTLTimer();
+      document.getElementById('btnClearAll').style.display = '';
+    } else {
+      document.getElementById('ttlDisplay').classList.add('d-none');
+    }
+
+  } catch (err) {
+    hideLoading();
+    errEl.textContent = 'Error: ' + err.message;
+    errEl.classList.remove('d-none');
+  }
+}
+
+/* =========================================================
+   RENDER DASHBOARD
+   ========================================================= */
+function renderDashboard(charts) {
+  // Destroy previous chart instances
+  state.chartInstances.forEach(c => c.destroy());
+  state.chartInstances = [];
+
+  // Summary
+  document.getElementById('dFilename').textContent = state.filename;
+  document.getElementById('dRows').textContent = state.totalRows.toLocaleString();
+  document.getElementById('dCols').textContent = state.columns.length;
+  document.getElementById('dStorage').innerHTML = state.storageChoice === 'db'
+    ? `<span class="badge bg-success"><i class="bi bi-database me-1"></i>${state.tableName}</span>`
+    : `<span class="badge bg-warning text-dark"><i class="bi bi-lightning me-1"></i>Cache (30 min)</span>`;
+
+  const grid = document.getElementById('chartsGrid');
+  grid.innerHTML = '';
+
+  if (!charts || charts.length === 0) {
+    document.getElementById('noCharts').classList.remove('d-none');
+    return;
+  }
+  document.getElementById('noCharts').classList.add('d-none');
+
+  const CHART_TYPE_LABELS = {
+    bar:'Bar Chart', line:'Line Chart', area:'Area Chart',
+    pie:'Pie Chart', doughnut:'Doughnut Chart',
+    radar:'Radar Chart', polarArea:'Polar Area Chart',
+  };
+
+  charts.forEach((cfg, idx) => {
+    const colClass = charts.length === 1 ? 'col-12' : 'col-md-6';
+    const cardId = `chart_card_${idx}`;
+    const canvasId = `chart_canvas_${idx}`;
+
+    const label = CHART_TYPE_LABELS[cfg.display_type] || cfg.type;
+    grid.insertAdjacentHTML('beforeend', `
+      <div class="col-12 ${charts.length > 1 ? 'col-lg-6' : ''}">
+        <div class="dash-card" id="${cardId}">
+          <div class="d-flex align-items-center justify-content-between mb-3">
+            <h6 class="fw-bold mb-0">${esc(cfg.title)}</h6>
+            <span class="badge bg-light text-secondary border">${label}</span>
+          </div>
+          <div class="chart-wrapper">
+            <canvas id="${canvasId}"></canvas>
+          </div>
+        </div>
+      </div>`);
+
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    const isPieLike = ['pie','doughnut','polarArea'].includes(cfg.type);
+
+    const chartConfig = {
+      type: cfg.type,
+      data: {
+        labels: cfg.labels,
+        datasets: cfg.datasets,
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: isPieLike ? 'right' : 'top', labels: { boxWidth: 12, font: { size: 12 } } },
+          tooltip: { mode: 'index', intersect: false },
+        },
+        scales: isPieLike ? {} : {
+          x: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 } } },
+          y: { grid: { color: '#f1f5f9' }, ticks: { font: { size: 11 } }, beginAtZero: true },
+        },
+        animation: { duration: 600, easing: 'easeInOutQuart' },
+      },
+    };
+
+    // Area charts: ensure fill is enabled
+    if (cfg.display_type === 'area') {
+      chartConfig.data.datasets.forEach(ds => { ds.fill = true; });
+    }
+
+    state.chartInstances.push(new Chart(ctx, chartConfig));
+  });
+}
+
+/* =========================================================
+   TTL TIMER (cache mode)
+   ========================================================= */
+function startTTLTimer() {
+  state.ttlSeconds = 1800;
+  const display = document.getElementById('ttlDisplay');
+  const text    = document.getElementById('ttlText');
+  display.classList.remove('d-none');
+
+  clearInterval(state.ttlInterval);
+  state.ttlInterval = setInterval(() => {
+    state.ttlSeconds--;
+    if (state.ttlSeconds <= 0) {
+      clearInterval(state.ttlInterval);
+      display.classList.add('d-none');
+      showToast('Cache expired. Your data has been cleared.', 'warning');
+      resetDashboard();
+      return;
+    }
+    const m = String(Math.floor(state.ttlSeconds / 60)).padStart(2, '0');
+    const s = String(state.ttlSeconds % 60).padStart(2, '0');
+    text.textContent = `${m}:${s}`;
+  }, 1000);
+}
+
+/* =========================================================
+   CLEAR ALL (cache version)
+   ========================================================= */
+async function clearAll() {
+  if (!confirm('This will delete your cached data and charts. Continue?')) return;
+  showLoading('Clearing data…');
+  try {
+    await fetch('/clear-cache/', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrfToken() },
+      body: JSON.stringify({ cache_key: state.cacheKey }),
+    });
+  } catch (_) {}
+  hideLoading();
+  showToast('Cache cleared.', 'warning');
+  clearInterval(state.ttlInterval);
+  resetDashboard();
+}
+
+/* =========================================================
+   RESET / START OVER
+   ========================================================= */
+function resetDashboard() {
+  clearInterval(state.ttlInterval);
+  state.chartInstances.forEach(c => c.destroy());
+  Object.assign(state, {
+    sourceType: 'upload',
+    cacheKey: null, columns: [], numericColumns: [], preview: [],
+    totalRows: 0, filename: '', xColumn: null, yColumns: [],
+    chartTypes: [], storageChoice: null, tableName: '',
+    chartInstances: [], ttlInterval: null, ttlSeconds: 1800,
+    timeColumn: '', timeStart: '', timeEnd: '',
+  });
+
+  // Reset UI
+  document.getElementById('fileInput').value = '';
+  document.getElementById('tableSelect').value = '';
+  document.getElementById('timeColumnSelect').innerHTML = '<option value="">-- None --</option>';
+  document.getElementById('timeStartInput').value = '';
+  document.getElementById('timeEndInput').value = '';
+  document.getElementById('fileInfo').classList.add('d-none');
+  document.getElementById('uploadError').classList.add('d-none');
+  document.getElementById('configError').classList.add('d-none');
+  document.getElementById('storageError').classList.add('d-none');
+  document.getElementById('tableNameInput').value = '';
+  document.getElementById('tableNameSection').classList.add('d-none');
+  document.getElementById('cardSaveDB').classList.remove('selected');
+  document.getElementById('cardCache').classList.remove('selected');
+  document.querySelectorAll('.chart-card.selected').forEach(el => el.classList.remove('selected'));
+  document.getElementById('chartsGrid').innerHTML = '';
+  document.getElementById('ttlDisplay').classList.add('d-none');
+  document.getElementById('btnClearAll').style.display = 'none';
+  selectSource('upload');
+
+  goStep(1);
+}
+function esc(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// Initialise on page load
+document.addEventListener('DOMContentLoaded', () => {
+  goStep(1);
+});
+</script>
+</body>
+</html>
