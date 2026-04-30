@@ -106,6 +106,10 @@ def load_table_data(request):
             cols = [desc[0] for desc in cur.description]
 
         df = pd.DataFrame(rows, columns=cols)
+        # Drop PK id column when present (case-insensitive) without requiring prior schema knowledge.
+        id_like_cols = [c for c in df.columns if str(c).lower() == 'id']
+        if id_like_cols:
+            df = df.drop(columns=id_like_cols)
         if df.empty:
             return JsonResponse({'error': 'Selected table has no rows.'}, status=400)
 
